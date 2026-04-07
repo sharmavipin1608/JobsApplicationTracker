@@ -1,0 +1,189 @@
+{
+  "info": {
+    "name": "Job Tracker API",
+    "description": "Collection for the Job Application Tracker REST API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Jobs",
+      "item": [
+        {
+          "name": "Create Job - Minimal (company + role only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "jobs"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company\": \"Acme Corp\",\n  \"role\": \"Senior Software Engineer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Creates a job application with only the required fields. Status defaults to UNDETERMINED. appliedAt stays null because UNDETERMINED is a pre-application status."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Job - With Status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "jobs"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company\": \"Stripe\",\n  \"role\": \"Backend Engineer\",\n  \"status\": \"APPLIED\",\n  \"appliedAt\": \"2026-04-01T10:00:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Creates a job application with status explicitly set to APPLIED and an appliedAt timestamp."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Job - APPLIED without appliedAt (auto-defaulted)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "jobs"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company\": \"Stripe\",\n  \"role\": \"Backend Engineer\",\n  \"status\": \"APPLIED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Status is APPLIED but appliedAt is omitted. The server defaults appliedAt to the current timestamp. Check the response — appliedAt will be populated automatically."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Job - With JD Text",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "jobs"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company\": \"Anthropic\",\n  \"role\": \"Staff Engineer\",\n  \"jdText\": \"We are looking for a staff engineer to work on large-scale distributed systems...\",\n  \"status\": \"UNDETERMINED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Creates a job application with the full job description text included. Useful for the future percentage-match feature."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Job - Missing company (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "jobs"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"Senior Engineer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Expects 400 Bad Request — company is required."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Job - Invalid status (400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "jobs"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company\": \"Acme Corp\",\n  \"role\": \"Engineer\",\n  \"status\": \"INVALID_STATUS\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Expects 400 Bad Request — status must be one of: UNDETERMINED, NOT_A_FIT, APPLIED, SCREENING, INTERVIEWING, OFFER_RECEIVED, OFFER_ACCEPTED, OFFER_DECLINED, REJECTED, WITHDRAWN, GHOSTED."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
