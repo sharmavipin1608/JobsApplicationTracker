@@ -34,6 +34,10 @@ dependencies {
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
 
+    // MapStruct — compile-time mapping between DTOs and entities
+    implementation 'org.mapstruct:mapstruct:1.6.3'
+    annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
+
     // Testing
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.testcontainers:junit-jupiter'
@@ -42,7 +46,7 @@ dependencies {
 
 dependencyManagement {
     imports {
-        mavenBom 'org.testcontainers:testcontainers-bom:1.20.6'
+        mavenBom 'org.testcontainers:testcontainers-bom:1.21.3'
     }
 }
 
