@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Job Tracker API",
-    "description": "Collection for the Job Application Tracker REST API",
+    "description": "Collection for the Job Application Tracker REST API (V1 + V2)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -9,22 +9,23 @@
       "key": "baseUrl",
       "value": "http://localhost:8080",
       "type": "string"
+    },
+    {
+      "key": "jobId",
+      "value": "",
+      "type": "string",
+      "description": "Set this after creating a job — used by GET, PATCH, DELETE, analyze, score requests"
     }
   ],
   "item": [
     {
-      "name": "Jobs",
+      "name": "Jobs - CRUD",
       "item": [
         {
           "name": "Create Job - Minimal (company + role only)",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{"key": "Content-Type", "value": "application/json"}],
             "url": {
               "raw": "{{baseUrl}}/api/v1/jobs",
               "host": ["{{baseUrl}}"],
@@ -33,26 +34,17 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"company\": \"Acme Corp\",\n  \"role\": \"Senior Software Engineer\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "options": {"raw": {"language": "json"}}
             },
-            "description": "Creates a job application with only the required fields. Status defaults to UNDETERMINED. appliedAt stays null because UNDETERMINED is a pre-application status."
+            "description": "Creates a job with only required fields. Status defaults to UNDETERMINED. appliedAt stays null."
           },
           "response": []
         },
         {
-          "name": "Create Job - With Status",
+          "name": "Create Job - With JD Text (for analyze)",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{"key": "Content-Type", "value": "application/json"}],
             "url": {
               "raw": "{{baseUrl}}/api/v1/jobs",
               "host": ["{{baseUrl}}"],
@@ -60,14 +52,10 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"company\": \"Stripe\",\n  \"role\": \"Backend Engineer\",\n  \"status\": \"APPLIED\",\n  \"appliedAt\": \"2026-04-01T10:00:00\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "raw": "{\n  \"company\": \"Anthropic\",\n  \"role\": \"Staff Engineer\",\n  \"jdText\": \"We are looking for a Staff Engineer with deep expertise in Java, Spring Boot, PostgreSQL, and distributed systems. Experience with Kubernetes, Kafka, and GCP is a plus. The role involves designing and building scalable backend services.\"\n}",
+              "options": {"raw": {"language": "json"}}
             },
-            "description": "Creates a job application with status explicitly set to APPLIED and an appliedAt timestamp."
+            "description": "Creates a job with jdText — needed for the /analyze endpoint. Copy the returned id into the {{jobId}} variable."
           },
           "response": []
         },
@@ -75,12 +63,7 @@
           "name": "Create Job - APPLIED without appliedAt (auto-defaulted)",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{"key": "Content-Type", "value": "application/json"}],
             "url": {
               "raw": "{{baseUrl}}/api/v1/jobs",
               "host": ["{{baseUrl}}"],
@@ -89,54 +72,111 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"company\": \"Stripe\",\n  \"role\": \"Backend Engineer\",\n  \"status\": \"APPLIED\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "options": {"raw": {"language": "json"}}
             },
-            "description": "Status is APPLIED but appliedAt is omitted. The server defaults appliedAt to the current timestamp. Check the response — appliedAt will be populated automatically."
+            "description": "Status is APPLIED but appliedAt is omitted. Server defaults appliedAt to current timestamp."
           },
           "response": []
         },
         {
-          "name": "Create Job - With JD Text",
+          "name": "List All Jobs",
           "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "method": "GET",
             "url": {
               "raw": "{{baseUrl}}/api/v1/jobs",
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "jobs"]
             },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"company\": \"Anthropic\",\n  \"role\": \"Staff Engineer\",\n  \"jdText\": \"We are looking for a staff engineer to work on large-scale distributed systems...\",\n  \"status\": \"UNDETERMINED\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "description": "Creates a job application with the full job description text included. Useful for the future percentage-match feature."
+            "description": "Returns all non-deleted jobs."
           },
           "response": []
         },
         {
+          "name": "Get Job by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "jobs", "{{jobId}}"]
+            },
+            "description": "Returns a single job. 404 if not found or soft-deleted."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Job - PATCH status + notes",
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "jobs", "{{jobId}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"APPLIED\",\n  \"notes\": \"Spoke to recruiter, moving forward\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "description": "Partial update. Null fields are left unchanged. Empty string for notes clears it."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Job (soft delete)",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "jobs", "{{jobId}}"]
+            },
+            "description": "Soft-deletes the job (sets deleted_at). Returns 204 No Content. Job will be hidden from list/get queries."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Jobs - AI Analysis",
+      "item": [
+        {
+          "name": "Trigger Analysis (async)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}/analyze",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "jobs", "{{jobId}}", "analyze"]
+            },
+            "description": "Kicks off the AI scoring pipeline asynchronously. Returns 202 Accepted immediately. The pipeline: JdParserAgent extracts skills/seniority/domain, then ResumeScorerAgent scores resume fit. Both steps are logged in agent_runs. Requires jdText to be non-null — returns 400 otherwise."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Score",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}/score",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "jobs", "{{jobId}}", "score"]
+            },
+            "description": "Returns the latest score for the job. Returns null body if no score exists yet (analysis still running or never triggered). Poll this after triggering /analyze."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Error Cases",
+      "item": [
+        {
           "name": "Create Job - Missing company (400)",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{"key": "Content-Type", "value": "application/json"}],
             "url": {
               "raw": "{{baseUrl}}/api/v1/jobs",
               "host": ["{{baseUrl}}"],
@@ -145,11 +185,7 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"role\": \"Senior Engineer\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "options": {"raw": {"language": "json"}}
             },
             "description": "Expects 400 Bad Request — company is required."
           },
@@ -159,12 +195,7 @@
           "name": "Create Job - Invalid status (400)",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [{"key": "Content-Type", "value": "application/json"}],
             "url": {
               "raw": "{{baseUrl}}/api/v1/jobs",
               "host": ["{{baseUrl}}"],
@@ -173,13 +204,35 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"company\": \"Acme Corp\",\n  \"role\": \"Engineer\",\n  \"status\": \"INVALID_STATUS\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
+              "options": {"raw": {"language": "json"}}
             },
-            "description": "Expects 400 Bad Request — status must be one of: UNDETERMINED, NOT_A_FIT, APPLIED, SCREENING, INTERVIEWING, OFFER_RECEIVED, OFFER_ACCEPTED, OFFER_DECLINED, REJECTED, WITHDRAWN, GHOSTED."
+            "description": "Expects 400 Bad Request — status must be a valid JobStatus enum value."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Job - Not found (404)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/00000000-0000-0000-0000-000000000000",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "jobs", "00000000-0000-0000-0000-000000000000"]
+            },
+            "description": "Expects 404 — nonexistent UUID."
+          },
+          "response": []
+        },
+        {
+          "name": "Analyze - No JD text (400)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/jobs/{{jobId}}/analyze",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "jobs", "{{jobId}}", "analyze"]
+            },
+            "description": "Expects 400 MISSING_JD_TEXT if the job has no jdText. Create a job without jdText first, then set its id as {{jobId}}."
           },
           "response": []
         }

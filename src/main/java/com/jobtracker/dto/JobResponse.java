@@ -11,5 +11,7 @@ public record JobResponse(
         String role,
         JobStatus status,
         LocalDateTime appliedAt,
+        String notes,
+        Integer fitScore,
         LocalDateTime createdAt
 ) {}

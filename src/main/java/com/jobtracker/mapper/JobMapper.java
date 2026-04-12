@@ -12,6 +12,8 @@ public interface JobMapper {
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "notes", ignore = true)
+    @Mapping(target = "fitScore", ignore = true)
     @Mapping(target = "status", defaultValue = "UNDETERMINED")
     Job toEntity(CreateJobRequest request);
 

@@ -78,4 +78,37 @@ class JobRepositoryTest {
         assertThat(found).isPresent();
         assertThat(found.get().getAppliedAt()).isNull();
     }
+
+    @Test
+    void shouldSoftDeleteJob_andHideItFromQueries() {
+        Job job = new Job();
+        job.setCompany("Acme Corp");
+        job.setRole("Senior Software Engineer");
+        job.setStatus(JobStatus.UNDETERMINED);
+        Job saved = jobRepository.save(job);
+
+        jobRepository.delete(saved);
+        jobRepository.flush();
+
+        // Soft-deleted: regular queries hide it
+        assertThat(jobRepository.findById(saved.getId())).isEmpty();
+        assertThat(jobRepository.findAll()).extracting(Job::getId).doesNotContain(saved.getId());
+    }
+
+    @Test
+    void shouldFindAllJobs_excludingSoftDeleted() {
+        Job a = new Job();
+        a.setCompany("A"); a.setRole("Engineer"); a.setStatus(JobStatus.UNDETERMINED);
+        Job b = new Job();
+        b.setCompany("B"); b.setRole("Engineer"); b.setStatus(JobStatus.UNDETERMINED);
+        jobRepository.save(a);
+        Job savedB = jobRepository.save(b);
+        jobRepository.delete(savedB);
+        jobRepository.flush();
+
+        assertThat(jobRepository.findAll())
+                .extracting(Job::getCompany)
+                .contains("A")
+                .doesNotContain("B");
+    }
 }
