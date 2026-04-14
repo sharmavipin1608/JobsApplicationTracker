@@ -25,22 +25,28 @@
 
 ```mermaid
 graph LR
-    Client["Client\n(Postman / cURL / Future UI)"]
+    CD["Claude Desktop"]
+    MCP["MCP Server\nserver.py\n(Python / FastMCP)"]
+    Client["Client\n(Postman / cURL)"]
     API["Job Tracker API\nSpring Boot 3.4.x\nJava 21"]
     DB["PostgreSQL 16\n(Docker)"]
     OR["OpenRouter API\n(Free-tier LLM)"]
 
+    CD -- "stdio\n(JSON-RPC)" --> MCP
+    MCP -- "REST / JSON\nHTTP 1.1" --> API
     Client -- "REST / JSON\nHTTP 1.1" --> API
     API -- "JDBC\nHikariCP" --> DB
     API -- "HTTPS\nRestClient" --> OR
 
+    style CD fill:#cc6600,color:#fff
+    style MCP fill:#f0a050,color:#000
     style API fill:#4a90d9,color:#fff
     style DB fill:#336791,color:#fff
     style OR fill:#10a37f,color:#fff
     style Client fill:#666,color:#fff
 ```
 
-The API is the only component we own. PostgreSQL runs locally via Docker. OpenRouter is a third-party LLM gateway — we call it for JD parsing and resume scoring. There is no UI yet; all interaction is via REST.
+The Spring Boot API is the only backend component we own. PostgreSQL runs locally via Docker. OpenRouter is a third-party LLM gateway. The MCP server is a thin Python process that Claude Desktop launches — it translates Claude's tool calls into HTTP requests to the REST API.
 
 ---
 
@@ -51,12 +57,14 @@ The API is the only component we own. PostgreSQL runs locally via Docker. OpenRo
 | Language       | Java                                | 21       | Records, text blocks, sealed classes         |
 | Framework      | Spring Boot                         | 3.4.4    | Web, Data JPA, Validation, Async            |
 | Database       | PostgreSQL                          | 16       | Runs in Docker via `docker-compose`          |
-| Migrations     | Flyway                              | 10.x     | Auto-runs on startup. 5 migrations (V1-V5)  |
+| Migrations     | Flyway                              | 10.x     | Auto-runs on startup. 7 migrations (V1-V7)  |
 | ORM            | Spring Data JPA / Hibernate         | 6.6.x    | `ddl-auto: validate` — schema via Flyway    |
 | Mapping        | MapStruct                           | 1.6.3    | Compile-time, `ReportingPolicy.ERROR`        |
+| PDF Parsing    | Apache PDFBox                       | 3.0.4    | Extracts plain text from uploaded PDFs       |
 | HTTP Client    | Spring `RestClient`                 | 6.2.x    | Calls OpenRouter. Forced to HTTP/1.1         |
 | AI Gateway     | OpenRouter                          | —        | Free-tier model: `arcee-ai/trinity-large-preview:free` |
 | Build          | Gradle                              | 8.x      | Single-module project                        |
+| Container      | Docker / docker-compose             | —        | App + DB both containerised; multi-stage Dockerfile |
 | Testing        | JUnit 5, Testcontainers, WireMock   | —        | Real PostgreSQL in tests. WireMock for LLM   |
 | Async Testing  | Awaitility                          | —        | Polling assertions for async pipeline        |
 | CI/CD          | GitHub Actions                      | —        | PR checks: compile + full test suite         |
@@ -67,7 +75,7 @@ The API is the only component we own. PostgreSQL runs locally via Docker. OpenRo
 
 All endpoints are under `/api/v1/jobs`.
 
-### CRUD Endpoints
+### Jobs Endpoints
 
 | Method   | Path                      | Request Body        | Response Body   | Status Codes          |
 |----------|---------------------------|---------------------|-----------------|-----------------------|
@@ -79,10 +87,20 @@ All endpoints are under `/api/v1/jobs`.
 
 ### AI Endpoints
 
-| Method   | Path                           | Request Body | Response Body   | Status Codes                |
-|----------|--------------------------------|--------------|-----------------|-----------------------------|
+| Method   | Path                           | Request Body | Response Body      | Status Codes                 |
+|----------|--------------------------------|--------------|--------------------|------------------------------|
 | `POST`   | `/api/v1/jobs/{id}/analyze`    | —            | `{message, jobId}` | `202` Accepted, `400`, `404` |
-| `GET`    | `/api/v1/jobs/{id}/score`      | —            | `ScoreResponse` (nullable) | `200`, `404`     |
+| `GET`    | `/api/v1/jobs/{id}/score`      | —            | `ScoreResponse`    | `200`, `404`                 |
+
+### Resume Endpoints
+
+| Method   | Path                                | Request Body         | Response Body    | Status Codes          |
+|----------|-------------------------------------|----------------------|------------------|-----------------------|
+| `POST`   | `/api/v1/resumes`                   | `multipart/form-data` (`file`) | `ResumeResponse` | `201`, `400` |
+| `POST`   | `/api/v1/resumes?jobId={id}`        | `multipart/form-data` (`file`) | `ResumeResponse` | `201`, `400`, `404` |
+| `GET`    | `/api/v1/resumes/master`            | —                    | `ResumeResponse` | `200`, `404`          |
+| `GET`    | `/api/v1/resumes/master/download`   | —                    | file bytes       | `200`, `404`          |
+| `GET`    | `/api/v1/resumes/job/{jobId}`       | —                    | `ResumeResponse` | `200`, `404`          |
 
 ### Request / Response Shapes
 
@@ -92,6 +110,7 @@ All endpoints are under `/api/v1/jobs`.
   "company": "Anthropic",          // required
   "role": "Staff Engineer",        // required
   "jdText": "We need a ...",       // optional — needed for /analyze
+  "jdUrl": "https://...",          // optional — link to original job posting
   "status": "APPLIED",             // optional — defaults to UNDETERMINED
   "appliedAt": "2026-04-09T..."    // optional — auto-defaults (see below)
 }
@@ -114,7 +133,19 @@ All endpoints are under `/api/v1/jobs`.
   "status": "APPLIED",
   "appliedAt": "2026-04-09T01:42:55",
   "notes": "Spoke to recruiter",
+  "jdUrl": "https://jobs.anthropic.com/...",
   "fitScore": 85,
+  "createdAt": "2026-04-09T01:42:55"
+}
+```
+
+**ResumeResponse**
+```json
+{
+  "id": "uuid",
+  "jobId": null,
+  "fileName": "resume.pdf",
+  "contentText": "John Doe\nSoftware Engineer...",
   "createdAt": "2026-04-09T01:42:55"
 }
 ```
@@ -159,6 +190,7 @@ erDiagram
         VARCHAR company "NOT NULL"
         VARCHAR role "NOT NULL"
         TEXT jd_text "nullable"
+        VARCHAR jd_url "nullable — link to original posting"
         VARCHAR status "NOT NULL DEFAULT UNDETERMINED"
         TIMESTAMP applied_at "nullable"
         TEXT notes "nullable"
@@ -187,8 +219,18 @@ erDiagram
         TIMESTAMP created_at "NOT NULL DEFAULT now()"
     }
 
+    resumes {
+        UUID id PK "gen_random_uuid()"
+        UUID job_id FK "nullable → jobs(id) — NULL = master resume"
+        VARCHAR file_name "NOT NULL"
+        BYTEA file_content "NOT NULL — lazy loaded"
+        TEXT content_text "NOT NULL — extracted text for AI"
+        TIMESTAMP created_at "NOT NULL DEFAULT now()"
+    }
+
     jobs ||--o{ agent_runs : "has many"
     jobs ||--o{ scores : "has many"
+    jobs ||--o{ resumes : "has many tailored"
 ```
 
 ### Migration History
@@ -200,6 +242,8 @@ erDiagram
 | V3      | `V3__create_scores.sql`                    | Creates `scores` + index on job_id       |
 | V4      | `V4__add_fit_score_and_notes_to_jobs.sql`  | Adds `fit_score`, `notes` to jobs        |
 | V5      | `V5__add_deleted_at_to_jobs.sql`           | Adds `deleted_at` for soft delete        |
+| V6      | `V6__create_resumes.sql`                   | Creates `resumes` table + index on job_id |
+| V7      | `V7__add_jd_url_to_jobs.sql`              | Adds `jd_url` column to jobs             |
 
 ### JobStatus Enum
 
@@ -227,10 +271,12 @@ The `isPreApplication()` flag on the enum controls the appliedAt defaulting logi
 graph TB
     subgraph "HTTP Layer"
         JC["JobController"]
+        RC["ResumeController"]
     end
 
     subgraph "Business Logic Layer"
         JS["JobService"]
+        RS["ResumeService"]
         OS["OrchestratorService"]
     end
 
@@ -244,6 +290,7 @@ graph TB
         JR["JobRepository"]
         ARR["AgentRunRepository"]
         SR["ScoreRepository"]
+        RR["ResumeRepository"]
     end
 
     subgraph "External Client Layer"
@@ -257,15 +304,18 @@ graph TB
 
     JC --> JS
     JC --> OS
+    RC --> RS
     JS --> JR
     JS --> SR
     JS --> JM
     JS -->|"auto-analyze\nif jdText present"| OS
+    RS --> RR
     OS -->|"@Async"| JPA
     OS --> RSA
     OS --> ARR
     OS --> SR
     OS --> JR
+    RSA -->|"fetch resume text"| RR
     JPA --> ORC
     JPA --> AJE
     RSA --> ORC
@@ -273,7 +323,9 @@ graph TB
     ORC -->|"HTTPS"| OR["OpenRouter API"]
 
     style JC fill:#4a90d9,color:#fff
+    style RC fill:#4a90d9,color:#fff
     style JS fill:#5ba55b,color:#fff
+    style RS fill:#5ba55b,color:#fff
     style OS fill:#5ba55b,color:#fff
     style JPA fill:#e6a817,color:#000
     style RSA fill:#e6a817,color:#000
@@ -282,20 +334,21 @@ graph TB
     style JR fill:#8e6bb5,color:#fff
     style ARR fill:#8e6bb5,color:#fff
     style SR fill:#8e6bb5,color:#fff
+    style RR fill:#8e6bb5,color:#fff
     style JM fill:#999,color:#fff
     style GEH fill:#999,color:#fff
 ```
 
 ### Layer Responsibilities
 
-| Layer              | Classes                                           | Responsibility                                                      |
-|--------------------|---------------------------------------------------|---------------------------------------------------------------------|
-| **HTTP**           | `JobController`                                   | Route requests, validate input (`@Valid`), return HTTP status codes  |
-| **Business Logic** | `JobService`, `OrchestratorService`               | All domain logic: CRUD, appliedAt defaulting, agent orchestration   |
-| **Agent**          | `JdParserAgent`, `ResumeScorerAgent`, `AgentJsonExtractor` | Prompt construction, LLM output parsing, result validation |
-| **Data Access**    | `JobRepository`, `AgentRunRepository`, `ScoreRepository`   | Spring Data JPA interfaces, custom query methods            |
-| **External Client**| `OpenRouterClient`                                | HTTP calls to OpenRouter, error wrapping                            |
-| **Cross-Cutting**  | `JobMapper`, `GlobalExceptionHandler`             | DTO mapping, centralized error responses                            |
+| Layer              | Classes                                                    | Responsibility                                                       |
+|--------------------|------------------------------------------------------------|----------------------------------------------------------------------|
+| **HTTP**           | `JobController`, `ResumeController`                        | Route requests, validate input (`@Valid`), return HTTP status codes  |
+| **Business Logic** | `JobService`, `ResumeService`, `OrchestratorService`       | All domain logic: CRUD, resume upload/extraction, agent orchestration|
+| **Agent**          | `JdParserAgent`, `ResumeScorerAgent`, `AgentJsonExtractor` | Prompt construction, LLM output parsing, result validation           |
+| **Data Access**    | `JobRepository`, `AgentRunRepository`, `ScoreRepository`, `ResumeRepository` | Spring Data JPA interfaces, custom query methods |
+| **External Client**| `OpenRouterClient`                                         | HTTP calls to OpenRouter, error wrapping                             |
+| **Cross-Cutting**  | `JobMapper`, `GlobalExceptionHandler`                      | DTO mapping, centralized error responses                             |
 
 ---
 
@@ -345,7 +398,8 @@ sequenceDiagram
     rect rgb(240, 255, 240)
         Note over Orchestrator,LLM: Step 2 — Score Resume Fit
         Orchestrator->>Scorer: score(parsedJd)
-        Scorer->>Scorer: Build prompt: parsed JD JSON + hardcoded resume
+        Scorer->>DB: Fetch latest master resume (job_id IS NULL)
+        Scorer->>Scorer: Build prompt: parsed JD JSON + resume content_text
         Scorer->>LLM: POST /chat/completions<br/>system: "resume scorer"<br/>user: JD + resume
         LLM-->>Scorer: {"fit_score": 85, "recommendations": [...]}
         Scorer->>Scorer: AgentJsonExtractor.parse() → ScoreResult
@@ -432,14 +486,16 @@ All variables are defined in `.env` (git-ignored) and referenced in both `docker
 
 ### Running Locally
 
+**Full Docker stack** (app + DB — recommended):
 ```bash
-# 1. Start PostgreSQL
-docker-compose up -d
+docker-compose up --build
+# App available at http://localhost:8080
+```
 
-# 2. Export env vars and run
+**DB in Docker, app via Gradle** (faster iteration during development):
+```bash
+docker-compose up -d db
 set -a && source .env && set +a && ./gradlew bootRun
-
-# 3. App is available at http://localhost:8080
 ```
 
 ---
@@ -547,7 +603,7 @@ No deployment step — this is a local-first hobby project. CI validates that al
 
 ### Phase 2 (V2) — Full CRUD + AI Pipeline
 
-**Branch**: `create_job_v2` | **Status**: Complete, pending PR
+**Branch**: `create_job_v2` | **Status**: Merged to main
 
 | Feature                    | Details                                                          |
 |----------------------------|------------------------------------------------------------------|
@@ -567,6 +623,37 @@ No deployment step — this is a local-first hobby project. CI validates that al
 | Integration tests          | WireMock for LLM, Awaitility for async, Testcontainers          |
 | Postman collection         | Full V2 collection with CRUD, AI, and error cases                |
 
+### Phase 3 (V3) — Resume Management + jdUrl
+
+**Branch**: `create_job_v3` | **Status**: Merged to main
+
+| Feature                    | Details                                                          |
+|----------------------------|------------------------------------------------------------------|
+| Resume upload              | `POST /api/v1/resumes` — multipart upload, supports PDF and plain text |
+| PDF text extraction        | Apache PDFBox extracts `content_text` from uploaded PDFs         |
+| Master resume              | Resume with `job_id = NULL`; latest by `created_at` is used for scoring |
+| Tailored resume            | Resume linked to a specific job via `job_id`                     |
+| Resume retrieval           | GET endpoints for metadata and file download                     |
+| Dynamic scoring            | `ResumeScorerAgent` now fetches resume from DB instead of using hardcoded text |
+| jdUrl field                | Optional URL stored on job; returned in `JobResponse`            |
+| Flyway V6                  | `resumes` table with `file_content` (BYTEA) + `content_text` (TEXT) |
+| Flyway V7                  | `jd_url` column added to `jobs`                                  |
+| Dockerfile                 | Multi-stage build (JDK build → JRE runtime). App fully containerised |
+| docker-compose app service | `app` service added; connects to `db` via internal Docker network |
+| Resume tests               | `ResumeControllerTest`, `ResumeServiceTest`, `ResumeRepositoryTest` |
+
+### Phase 4 (V4) — MCP Server
+
+**Branch**: `create_job_v4` | **Status**: In progress
+
+| Feature                    | Details                                                          |
+|----------------------------|------------------------------------------------------------------|
+| MCP server                 | `mcp-server/server.py` — Python/FastMCP process, stdio transport |
+| 7 tools exposed            | `create_job`, `list_jobs`, `get_job`, `update_job`, `delete_job`, `analyze_and_wait`, `get_master_resume` |
+| Async analysis tool        | `analyze_and_wait` triggers pipeline then polls until score ready (60s timeout) |
+| Claude Desktop wiring      | Config snippet in `mcp-server/README.md`                         |
+| No API changes             | MCP server is a pure thin wrapper — Spring Boot untouched        |
+
 ---
 
 ## 12. Future Roadmap
@@ -575,13 +662,11 @@ Features not yet implemented, roughly ordered by priority:
 
 | Feature                        | Description                                                                                       | Complexity |
 |--------------------------------|---------------------------------------------------------------------------------------------------|------------|
-| **MCP Server**                 | Expose all API endpoints as MCP tools so Claude Desktop can interact with the tracker conversationally. Thin wrapper (Python/TypeScript) translates MCP tool calls into HTTP requests to the REST API. Enables multi-step flows like "create job → analyze → show score" via natural language. | Medium |
-| **Resume upload**              | Replace hardcoded `RESUME_SUMMARY` in `ResumeScorerAgent` with user-uploaded resume (PDF/text). Store per-user. | Medium |
+| **JD URL scraping**            | Scrape the job description from `jdUrl` automatically instead of requiring raw text input         | Medium |
 | **Pagination & sorting**       | `GET /api/v1/jobs` returns all jobs — add `page`, `size`, `sort` query params via Spring `Pageable` | Low |
 | **Search & filtering**         | Filter jobs by status, company, date range, fit score range                                       | Low |
 | **Re-analysis**                | Allow re-triggering `/analyze` after updating JD text. Handle score versioning                    | Low |
-| **Authentication & multi-user**| JWT or OAuth2 auth. Each user sees only their own jobs. Resume stored per user                    | High |
-| **JD URL scraping**            | Accept a URL instead of raw text. Scrape the JD from the careers page                            | Medium |
+| **Authentication & multi-user**| JWT or OAuth2 auth. Each user sees only their own jobs and resumes                               | High |
 | **Dashboard / UI**             | React or Next.js frontend for visual job tracking, score display, status board                    | High |
 | **Notifications**              | Email/Slack alerts when a job status hasn't changed in N days (follow-up reminders)              | Medium |
 | **Bulk import**                | CSV/JSON import of multiple jobs at once                                                          | Low |
