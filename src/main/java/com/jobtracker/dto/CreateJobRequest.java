@@ -9,6 +9,7 @@ public record CreateJobRequest(
         @NotBlank String company,
         @NotBlank String role,
         String jdText,
+        String jdUrl,
         JobStatus status,
         LocalDateTime appliedAt
 ) {}

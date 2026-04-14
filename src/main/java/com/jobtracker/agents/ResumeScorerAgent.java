@@ -4,20 +4,15 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jobtracker.client.OpenRouterClient;
 import com.jobtracker.exception.AgentException;
+import com.jobtracker.service.ResumeService;
 import org.springframework.stereotype.Component;
+
+import java.util.UUID;
 
 @Component
 public class ResumeScorerAgent {
 
     public static final String AGENT_NAME = "ResumeScorerAgent";
-
-    // Hardcoded resume summary for V2. Will be replaced by file/Drive upload in V3.
-    private static final String RESUME_SUMMARY = """
-            Senior Software Engineer with 8 years of experience.
-            Strong in: Java, Spring Boot, PostgreSQL, REST APIs, microservices, Kubernetes.
-            Some experience with: Python, AWS, Kafka.
-            Domain: backend systems, distributed systems, payments.
-            """;
 
     private static final String SYSTEM_PROMPT = """
             You are a resume scorer. Given a parsed job description (skills, seniority, domain) \
@@ -30,17 +25,20 @@ public class ResumeScorerAgent {
 
     private final OpenRouterClient openRouterClient;
     private final ObjectMapper objectMapper;
+    private final ResumeService resumeService;
 
-    public ResumeScorerAgent(OpenRouterClient openRouterClient, ObjectMapper objectMapper) {
+    public ResumeScorerAgent(OpenRouterClient openRouterClient, ObjectMapper objectMapper,
+                              ResumeService resumeService) {
         this.openRouterClient = openRouterClient;
         this.objectMapper = objectMapper;
+        this.resumeService = resumeService;
     }
 
-    public AgentInvocation<ScoreResult> score(JdParseResult parsedJd) {
+    public AgentInvocation<ScoreResult> score(UUID jobId, JdParseResult parsedJd) {
         if (parsedJd == null) {
             throw new AgentException("Cannot score against a null parsed JD");
         }
-        String userPrompt = buildUserPrompt(parsedJd);
+        String userPrompt = buildUserPrompt(jobId, parsedJd);
         String rawOutput = openRouterClient.complete(SYSTEM_PROMPT, userPrompt);
         ScoreResult result = AgentJsonExtractor.parse(rawOutput, ScoreResult.class, objectMapper);
         if (result.fitScore() < 0 || result.fitScore() > 100) {
@@ -49,10 +47,11 @@ public class ResumeScorerAgent {
         return new AgentInvocation<>(userPrompt, rawOutput, result);
     }
 
-    private String buildUserPrompt(JdParseResult parsedJd) {
+    private String buildUserPrompt(UUID jobId, JdParseResult parsedJd) {
         try {
             String jdJson = objectMapper.writeValueAsString(parsedJd);
-            return "Parsed JD:\n" + jdJson + "\n\nCandidate resume:\n" + RESUME_SUMMARY;
+            String resumeText = resumeService.getResumeTextForScoring(jobId);
+            return "Parsed JD:\n" + jdJson + "\n\nCandidate resume:\n" + resumeText;
         } catch (JsonProcessingException ex) {
             throw new AgentException("Failed to serialize parsed JD for scoring prompt", ex);
         }

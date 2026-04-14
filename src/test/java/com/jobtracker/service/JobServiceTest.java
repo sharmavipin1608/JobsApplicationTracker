@@ -52,7 +52,7 @@ class JobServiceTest {
     private JobResponse sampleResponse(JobStatus status, LocalDateTime appliedAt) {
         return new JobResponse(
                 UUID.randomUUID(), "Acme Corp", "Senior Engineer",
-                status, appliedAt, null, null, LocalDateTime.now()
+                status, appliedAt, null, null, null, LocalDateTime.now()
         );
     }
 
@@ -61,7 +61,7 @@ class JobServiceTest {
     @Test
     void shouldReturnJobResponse_whenValidRequest() {
         CreateJobRequest request = new CreateJobRequest(
-                "Acme Corp", "Senior Engineer", null, JobStatus.APPLIED, LocalDateTime.now()
+                "Acme Corp", "Senior Engineer", null, null, JobStatus.APPLIED, LocalDateTime.now()
         );
         Job mappedJob = new Job();
         mappedJob.setStatus(JobStatus.APPLIED);
@@ -83,7 +83,7 @@ class JobServiceTest {
     void shouldAutoTriggerAnalyze_whenJdTextIsPresent() {
         UUID jobId = UUID.randomUUID();
         CreateJobRequest request = new CreateJobRequest(
-                "Acme Corp", "Senior Engineer", "We need a Java engineer", JobStatus.UNDETERMINED, null
+                "Acme Corp", "Senior Engineer", "We need a Java engineer", null, JobStatus.UNDETERMINED, null
         );
         Job mappedJob = new Job();
         mappedJob.setStatus(JobStatus.UNDETERMINED);
@@ -104,7 +104,7 @@ class JobServiceTest {
     @Test
     void shouldDefaultAppliedAt_whenStatusIsPostApplicationAndAppliedAtIsNull() {
         CreateJobRequest request = new CreateJobRequest(
-                "Acme Corp", "Senior Engineer", null, JobStatus.APPLIED, null
+                "Acme Corp", "Senior Engineer", null, null, JobStatus.APPLIED, null
         );
         Job mappedJob = new Job();
         mappedJob.setStatus(JobStatus.APPLIED);
@@ -122,7 +122,7 @@ class JobServiceTest {
     @Test
     void shouldNotDefaultAppliedAt_whenStatusIsPreApplication() {
         CreateJobRequest request = new CreateJobRequest(
-                "Acme Corp", "Senior Engineer", null, JobStatus.UNDETERMINED, null
+                "Acme Corp", "Senior Engineer", null, null, JobStatus.UNDETERMINED, null
         );
         Job mappedJob = new Job();
         mappedJob.setStatus(JobStatus.UNDETERMINED);
@@ -185,7 +185,7 @@ class JobServiceTest {
         when(jobRepository.save(existing)).thenReturn(existing);
         when(jobMapper.toResponse(existing)).thenReturn(sampleResponse(JobStatus.APPLIED, LocalDateTime.now()));
 
-        UpdateJobRequest req = new UpdateJobRequest(JobStatus.APPLIED, "Spoke to recruiter");
+        UpdateJobRequest req = new UpdateJobRequest(JobStatus.APPLIED, "Spoke to recruiter", null);
         jobService.updateJob(id, req);
 
         assertThat(existing.getStatus()).isEqualTo(JobStatus.APPLIED);
@@ -202,7 +202,7 @@ class JobServiceTest {
         when(jobRepository.save(existing)).thenReturn(existing);
         when(jobMapper.toResponse(existing)).thenReturn(sampleResponse(JobStatus.UNDETERMINED, null));
 
-        jobService.updateJob(id, new UpdateJobRequest(null, ""));
+        jobService.updateJob(id, new UpdateJobRequest(null, "", null));
 
         assertThat(existing.getNotes()).isNull();
     }
@@ -217,7 +217,7 @@ class JobServiceTest {
         when(jobRepository.save(existing)).thenReturn(existing);
         when(jobMapper.toResponse(existing)).thenReturn(sampleResponse(JobStatus.APPLIED, null));
 
-        jobService.updateJob(id, new UpdateJobRequest(null, null));
+        jobService.updateJob(id, new UpdateJobRequest(null, null, null));
 
         assertThat(existing.getStatus()).isEqualTo(JobStatus.APPLIED);
         assertThat(existing.getNotes()).isEqualTo("keep me");
@@ -234,7 +234,7 @@ class JobServiceTest {
         when(jobRepository.save(existing)).thenReturn(existing);
         when(jobMapper.toResponse(existing)).thenReturn(sampleResponse(JobStatus.INTERVIEWING, original));
 
-        jobService.updateJob(id, new UpdateJobRequest(JobStatus.INTERVIEWING, null));
+        jobService.updateJob(id, new UpdateJobRequest(JobStatus.INTERVIEWING, null, null));
 
         assertThat(existing.getAppliedAt()).isEqualTo(original);
     }
@@ -244,7 +244,7 @@ class JobServiceTest {
         UUID id = UUID.randomUUID();
         when(jobRepository.findById(id)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> jobService.updateJob(id, new UpdateJobRequest(JobStatus.APPLIED, null)))
+        assertThatThrownBy(() -> jobService.updateJob(id, new UpdateJobRequest(JobStatus.APPLIED, null, null)))
                 .isInstanceOf(JobNotFoundException.class);
         verify(jobRepository, never()).save(any());
     }
@@ -291,6 +291,54 @@ class JobServiceTest {
 
         assertThatThrownBy(() -> jobService.getJdText(id))
                 .isInstanceOf(JobNotFoundException.class);
+    }
+
+    // ---------- jdUrl ----------
+
+    @Test
+    void shouldCreateJob_withJdUrl() {
+        CreateJobRequest request = new CreateJobRequest(
+                "Acme Corp", "Senior Engineer", null, "https://example.com/job", JobStatus.UNDETERMINED, null
+        );
+        Job mappedJob = new Job();
+        mappedJob.setStatus(JobStatus.UNDETERMINED);
+        mappedJob.setJdUrl("https://example.com/job");
+        Job savedJob = new Job();
+
+        when(jobMapper.toEntity(request)).thenReturn(mappedJob);
+        when(jobRepository.save(mappedJob)).thenReturn(savedJob);
+        when(jobMapper.toResponse(savedJob)).thenReturn(sampleResponse(JobStatus.UNDETERMINED, null));
+
+        jobService.createJob(request);
+
+        assertThat(mappedJob.getJdUrl()).isEqualTo("https://example.com/job");
+    }
+
+    @Test
+    void shouldPatchJdUrl() {
+        UUID id = UUID.randomUUID();
+        Job existing = new Job();
+        when(jobRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(jobRepository.save(existing)).thenReturn(existing);
+        when(jobMapper.toResponse(existing)).thenReturn(sampleResponse(JobStatus.UNDETERMINED, null));
+
+        jobService.updateJob(id, new UpdateJobRequest(null, null, "https://example.com/job"));
+
+        assertThat(existing.getJdUrl()).isEqualTo("https://example.com/job");
+    }
+
+    @Test
+    void shouldClearJdUrl_whenEmptyString() {
+        UUID id = UUID.randomUUID();
+        Job existing = new Job();
+        existing.setJdUrl("https://old-url.com");
+        when(jobRepository.findById(id)).thenReturn(Optional.of(existing));
+        when(jobRepository.save(existing)).thenReturn(existing);
+        when(jobMapper.toResponse(existing)).thenReturn(sampleResponse(JobStatus.UNDETERMINED, null));
+
+        jobService.updateJob(id, new UpdateJobRequest(null, null, ""));
+
+        assertThat(existing.getJdUrl()).isNull();
     }
 
     // ---------- findLatestScore ----------

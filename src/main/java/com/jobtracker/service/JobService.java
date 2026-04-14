@@ -72,6 +72,9 @@ public class JobService {
             // Empty string clears the notes (stored as null)
             job.setNotes(request.notes().isEmpty() ? null : request.notes());
         }
+        if (request.jdUrl() != null) {
+            job.setJdUrl(request.jdUrl().isEmpty() ? null : request.jdUrl());
+        }
 
         Job saved = jobRepository.save(job);
         return jobMapper.toResponse(saved);
