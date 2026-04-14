@@ -4,5 +4,6 @@ import com.jobtracker.enums.JobStatus;
 
 public record UpdateJobRequest(
         JobStatus status,
-        String notes
+        String notes,
+        String jdUrl
 ) {}

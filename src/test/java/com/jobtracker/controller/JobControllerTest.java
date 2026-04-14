@@ -48,14 +48,14 @@ class JobControllerTest {
     private ObjectMapper objectMapper;
 
     private JobResponse sampleResponse(UUID id, JobStatus status) {
-        return new JobResponse(id, "Acme Corp", "Senior Engineer", status, null, null, null, LocalDateTime.now());
+        return new JobResponse(id, "Acme Corp", "Senior Engineer", status, null, null, null, null, LocalDateTime.now());
     }
 
     // ---------- POST ----------
 
     @Test
     void shouldReturn201_whenValidRequest() throws Exception {
-        CreateJobRequest request = new CreateJobRequest("Acme Corp", "Senior Engineer", null, null, null);
+        CreateJobRequest request = new CreateJobRequest("Acme Corp", "Senior Engineer", null, null, null, null);
         when(jobService.createJob(any(CreateJobRequest.class)))
                 .thenReturn(sampleResponse(UUID.randomUUID(), JobStatus.UNDETERMINED));
 
@@ -225,6 +225,34 @@ class JobControllerTest {
 
         mockMvc.perform(post("/api/v1/jobs/" + id + "/analyze"))
                 .andExpect(status().isNotFound());
+    }
+
+    // ---------- jdUrl ----------
+
+    @Test
+    void shouldReturnJdUrl_inJobResponse() throws Exception {
+        UUID id = UUID.randomUUID();
+        JobResponse response = new JobResponse(id, "Acme Corp", "Senior Engineer",
+                JobStatus.APPLIED, null, null, "https://example.com/job", null, LocalDateTime.now());
+        when(jobService.findById(id)).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/jobs/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.jdUrl").value("https://example.com/job"));
+    }
+
+    @Test
+    void shouldAcceptJdUrl_inCreateRequest() throws Exception {
+        UUID id = UUID.randomUUID();
+        JobResponse response = new JobResponse(id, "Acme Corp", "Senior Engineer",
+                JobStatus.UNDETERMINED, null, null, "https://example.com/job", null, LocalDateTime.now());
+        when(jobService.createJob(any(CreateJobRequest.class))).thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/jobs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"company\":\"Acme Corp\",\"role\":\"Senior Engineer\",\"jdUrl\":\"https://example.com/job\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.jdUrl").value("https://example.com/job"));
     }
 
     // ---------- GET score ----------

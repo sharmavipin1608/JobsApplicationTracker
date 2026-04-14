@@ -61,7 +61,7 @@ class OrchestratorServiceTest {
 
         when(jdParserAgent.parse("some jd"))
                 .thenReturn(new AgentInvocation<>("some jd", "{raw}", parseResult));
-        when(resumeScorerAgent.score(parseResult))
+        when(resumeScorerAgent.score(jobId, parseResult))
                 .thenReturn(new AgentInvocation<>("prompt", "{raw}", scoreResult));
         when(jobRepository.findById(jobId)).thenReturn(Optional.of(new Job()));
 
@@ -109,7 +109,7 @@ class OrchestratorServiceTest {
         JdParseResult parseResult = new JdParseResult(List.of("Java"), "Senior", "Backend");
         when(jdParserAgent.parse("jd"))
                 .thenReturn(new AgentInvocation<>("jd", "{raw}", parseResult));
-        when(resumeScorerAgent.score(parseResult))
+        when(resumeScorerAgent.score(jobId, parseResult))
                 .thenThrow(new AgentException("score error"));
 
         orchestrator.analyze(jobId, "jd");
@@ -130,7 +130,7 @@ class OrchestratorServiceTest {
         JdParseResult parseResult = new JdParseResult(List.of("Java"), "Senior", "Backend");
         when(jdParserAgent.parse("jd"))
                 .thenReturn(new AgentInvocation<>("jd", "{raw}", parseResult));
-        when(resumeScorerAgent.score(parseResult))
+        when(resumeScorerAgent.score(jobId, parseResult))
                 .thenReturn(new AgentInvocation<>("prompt", "{raw}", new ScoreResult(50, List.of("a", "b", "c"))));
         when(jobRepository.findById(jobId)).thenReturn(Optional.of(new Job()));
 

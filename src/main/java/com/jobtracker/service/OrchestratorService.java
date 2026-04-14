@@ -73,7 +73,7 @@ public class OrchestratorService {
 
         // Step 2: Score resume fit
         try {
-            AgentInvocation<ScoreResult> scoreInvocation = resumeScorerAgent.score(parsedJd);
+            AgentInvocation<ScoreResult> scoreInvocation = resumeScorerAgent.score(jobId, parsedJd);
             ScoreResult scoreResult = scoreInvocation.result();
             saveAgentRun(jobId, ResumeScorerAgent.AGENT_NAME, scoreInvocation.inputText(),
                     scoreInvocation.rawOutput(), AgentRunStatus.SUCCESS);

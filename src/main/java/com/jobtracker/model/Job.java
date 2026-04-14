@@ -26,6 +26,9 @@ public class Job {
 
     private String jdText;
 
+    @Column(name = "jd_url")
+    private String jdUrl;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private JobStatus status;
@@ -61,6 +64,7 @@ public class Job {
     public String getCompany() { return company; }
     public String getRole() { return role; }
     public String getJdText() { return jdText; }
+    public String getJdUrl() { return jdUrl; }
     public JobStatus getStatus() { return status; }
     public LocalDateTime getAppliedAt() { return appliedAt; }
     public String getNotes() { return notes; }
@@ -72,6 +76,7 @@ public class Job {
     public void setCompany(String company) { this.company = company; }
     public void setRole(String role) { this.role = role; }
     public void setJdText(String jdText) { this.jdText = jdText; }
+    public void setJdUrl(String jdUrl) { this.jdUrl = jdUrl; }
     public void setStatus(JobStatus status) { this.status = status; }
     public void setAppliedAt(LocalDateTime appliedAt) { this.appliedAt = appliedAt; }
     public void setNotes(String notes) { this.notes = notes; }

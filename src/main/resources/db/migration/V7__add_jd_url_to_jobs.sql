@@ -1,0 +1,2 @@
+ALTER TABLE jobs
+    ADD COLUMN jd_url VARCHAR(2048);
