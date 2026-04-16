@@ -151,6 +151,74 @@ class ResumeServiceTest {
     }
 
     @Test
+    void shouldThrowNotFound_whenGetTailoredResume_forNonexistentJob() {
+        UUID jobId = UUID.randomUUID();
+        when(jobRepository.findById(jobId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> resumeService.getTailoredResume(jobId))
+                .isInstanceOf(JobNotFoundException.class);
+        verify(resumeRepository, never()).findFirstByJobIdOrderByCreatedAtDesc(any());
+    }
+
+    @Test
+    void shouldReturnNull_whenNoTailoredResumeExists() {
+        UUID jobId = UUID.randomUUID();
+        when(jobRepository.findById(jobId)).thenReturn(Optional.of(new Job()));
+        when(resumeRepository.findFirstByJobIdOrderByCreatedAtDesc(jobId)).thenReturn(Optional.empty());
+
+        assertThat(resumeService.getTailoredResume(jobId)).isNull();
+    }
+
+    @Test
+    void shouldReturnMasterResume_forDownload() {
+        Resume resume = buildSavedResume(null, "master.txt", "Master content");
+        when(resumeRepository.findFirstByJobIdIsNullOrderByCreatedAtDesc()).thenReturn(Optional.of(resume));
+
+        Resume result = resumeService.downloadMasterResume();
+
+        assertThat(result.getFileName()).isEqualTo("master.txt");
+    }
+
+    @Test
+    void shouldThrowResumeNotFound_whenDownloadMasterResume_andNoneExists() {
+        when(resumeRepository.findFirstByJobIdIsNullOrderByCreatedAtDesc()).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> resumeService.downloadMasterResume())
+                .isInstanceOf(ResumeNotFoundException.class);
+    }
+
+    @Test
+    void shouldReturnTailoredResume_forDownload() {
+        UUID jobId = UUID.randomUUID();
+        when(jobRepository.findById(jobId)).thenReturn(Optional.of(new Job()));
+        Resume resume = buildSavedResume(jobId, "tailored.txt", "Tailored content");
+        when(resumeRepository.findFirstByJobIdOrderByCreatedAtDesc(jobId)).thenReturn(Optional.of(resume));
+
+        Resume result = resumeService.downloadTailoredResume(jobId);
+
+        assertThat(result.getFileName()).isEqualTo("tailored.txt");
+    }
+
+    @Test
+    void shouldThrowNotFound_whenDownloadTailoredResume_forNonexistentJob() {
+        UUID jobId = UUID.randomUUID();
+        when(jobRepository.findById(jobId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> resumeService.downloadTailoredResume(jobId))
+                .isInstanceOf(JobNotFoundException.class);
+    }
+
+    @Test
+    void shouldThrowResumeNotFound_whenDownloadTailoredResume_andNoneExists() {
+        UUID jobId = UUID.randomUUID();
+        when(jobRepository.findById(jobId)).thenReturn(Optional.of(new Job()));
+        when(resumeRepository.findFirstByJobIdOrderByCreatedAtDesc(jobId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> resumeService.downloadTailoredResume(jobId))
+                .isInstanceOf(ResumeNotFoundException.class);
+    }
+
+    @Test
     void shouldReturnResumeText_tailoredFirst_thenMaster_thenFallback() {
         UUID jobId = UUID.randomUUID();
         Resume tailored = buildSavedResume(jobId, "tailored.txt", "Tailored text");

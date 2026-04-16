@@ -48,14 +48,14 @@ class JobControllerTest {
     private ObjectMapper objectMapper;
 
     private JobResponse sampleResponse(UUID id, JobStatus status) {
-        return new JobResponse(id, "Acme Corp", "Senior Engineer", status, null, null, null, null, LocalDateTime.now());
+        return new JobResponse(id, "Acme Corp", "Senior Engineer", status, null, null, null, null, null, LocalDateTime.now(), null);
     }
 
     // ---------- POST ----------
 
     @Test
     void shouldReturn201_whenValidRequest() throws Exception {
-        CreateJobRequest request = new CreateJobRequest("Acme Corp", "Senior Engineer", null, null, null, null);
+        CreateJobRequest request = new CreateJobRequest("Acme Corp", "Senior Engineer", null, null, null, null, null);
         when(jobService.createJob(any(CreateJobRequest.class)))
                 .thenReturn(sampleResponse(UUID.randomUUID(), JobStatus.UNDETERMINED));
 
@@ -233,7 +233,7 @@ class JobControllerTest {
     void shouldReturnJdUrl_inJobResponse() throws Exception {
         UUID id = UUID.randomUUID();
         JobResponse response = new JobResponse(id, "Acme Corp", "Senior Engineer",
-                JobStatus.APPLIED, null, null, "https://example.com/job", null, LocalDateTime.now());
+                JobStatus.APPLIED, null, null, null, "https://example.com/job", null, LocalDateTime.now(), null);
         when(jobService.findById(id)).thenReturn(response);
 
         mockMvc.perform(get("/api/v1/jobs/" + id))
@@ -245,7 +245,7 @@ class JobControllerTest {
     void shouldAcceptJdUrl_inCreateRequest() throws Exception {
         UUID id = UUID.randomUUID();
         JobResponse response = new JobResponse(id, "Acme Corp", "Senior Engineer",
-                JobStatus.UNDETERMINED, null, null, "https://example.com/job", null, LocalDateTime.now());
+                JobStatus.UNDETERMINED, null, null, null, "https://example.com/job", null, LocalDateTime.now(), null);
         when(jobService.createJob(any(CreateJobRequest.class))).thenReturn(response);
 
         mockMvc.perform(post("/api/v1/jobs")
