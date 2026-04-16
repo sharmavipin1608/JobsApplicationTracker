@@ -12,7 +12,9 @@ public record JobResponse(
         JobStatus status,
         LocalDateTime appliedAt,
         String notes,
+        String jdText,
         String jdUrl,
         Integer fitScore,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
 ) {}
