@@ -70,6 +70,7 @@ public class Job {
     public String getNotes() { return notes; }
     public Integer getFitScore() { return fitScore; }
     public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
     public LocalDateTime getDeletedAt() { return deletedAt; }
 
     // Setters for fields the service needs to set

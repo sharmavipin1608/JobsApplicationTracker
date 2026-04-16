@@ -141,4 +141,40 @@ class ResumeControllerTest {
         mockMvc.perform(multipart("/api/v1/resume").file(file))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void shouldReturn404_whenGetTailoredResume_forNonexistentJob() throws Exception {
+        UUID jobId = UUID.randomUUID();
+        when(resumeService.getTailoredResume(jobId)).thenThrow(new JobNotFoundException(jobId));
+
+        mockMvc.perform(get("/api/v1/jobs/{id}/resume", jobId))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldReturnNull_whenNoTailoredResumeExists() throws Exception {
+        UUID jobId = UUID.randomUUID();
+        when(resumeService.getTailoredResume(jobId)).thenReturn(null);
+
+        mockMvc.perform(get("/api/v1/jobs/{id}/resume", jobId))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void shouldReturn404_whenDownloadTailoredResume_forNonexistentJob() throws Exception {
+        UUID jobId = UUID.randomUUID();
+        when(resumeService.downloadTailoredResume(jobId)).thenThrow(new JobNotFoundException(jobId));
+
+        mockMvc.perform(get("/api/v1/jobs/{id}/resume/download", jobId))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldReturn404_whenDownloadTailoredResume_andNoneExists() throws Exception {
+        UUID jobId = UUID.randomUUID();
+        when(resumeService.downloadTailoredResume(jobId)).thenThrow(new ResumeNotFoundException("No tailored resume found for job " + jobId));
+
+        mockMvc.perform(get("/api/v1/jobs/{id}/resume/download", jobId))
+                .andExpect(status().isNotFound());
+    }
 }
