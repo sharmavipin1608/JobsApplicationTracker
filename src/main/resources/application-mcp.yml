@@ -1,0 +1,20 @@
+spring:
+  ai:
+    mcp:
+      server:
+        name: job-tracker
+        version: 1.0.0
+        type: SYNC
+        stdio: true
+  # Disable the HTTP server — MCP stdio uses stdin/stdout, not a port
+  main:
+    web-application-type: none
+    banner-mode: off
+
+# Redirect all logging to a file so stdout stays clean for the MCP protocol
+logging:
+  file:
+    name: /tmp/job-tracker-mcp.log
+  level:
+    root: WARN
+    com.jobtracker: INFO
