@@ -1,9 +1,0 @@
-[project]
-name = "job-tracker-mcp"
-version = "0.1.0"
-description = "MCP server exposing the Job Application Tracker REST API as Claude tools"
-requires-python = ">=3.11"
-dependencies = [
-    "mcp[cli]>=1.0.0",
-    "httpx>=0.27.0",
-]
