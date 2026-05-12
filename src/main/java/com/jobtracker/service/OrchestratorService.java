@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 public class OrchestratorService {
@@ -54,7 +55,7 @@ public class OrchestratorService {
     }
 
     @Async("agentExecutor")
-    public void analyze(UUID jobId, String jdText) {
+    public CompletableFuture<Score> analyze(UUID jobId, String jdText) {
         log.info("Starting analysis pipeline for job {}", jobId);
 
         // Step 1: Parse JD
@@ -68,7 +69,7 @@ public class OrchestratorService {
         } catch (Exception ex) {
             log.error("JdParserAgent failed for job {}", jobId, ex);
             saveAgentRun(jobId, JdParserAgent.AGENT_NAME, jdText, ex.getMessage(), AgentRunStatus.FAILED);
-            return;
+            return CompletableFuture.failedFuture(new RuntimeException("JD parsing failed", ex));
         }
 
         // Step 2: Score resume fit
@@ -79,15 +80,14 @@ public class OrchestratorService {
                     scoreInvocation.rawOutput(), AgentRunStatus.SUCCESS);
             log.info("ResumeScorerAgent succeeded for job {} — fit_score={}", jobId, scoreResult.fitScore());
 
-            // Persist score
-            saveScore(jobId, scoreResult);
-
-            // Update denormalized fit_score on jobs table
+            Score score = saveScore(jobId, scoreResult);
             updateJobFitScore(jobId, scoreResult.fitScore());
+            return CompletableFuture.completedFuture(score);
         } catch (Exception ex) {
             log.error("ResumeScorerAgent failed for job {}", jobId, ex);
             saveAgentRun(jobId, ResumeScorerAgent.AGENT_NAME, buildFallbackInput(parsedJd),
                     ex.getMessage(), AgentRunStatus.FAILED);
+            return CompletableFuture.failedFuture(new RuntimeException("Resume scoring failed", ex));
         }
     }
 
@@ -105,7 +105,7 @@ public class OrchestratorService {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void saveScore(UUID jobId, ScoreResult scoreResult) {
+    public Score saveScore(UUID jobId, ScoreResult scoreResult) {
         Score score = new Score();
         score.setJobId(jobId);
         score.setFitScore(scoreResult.fitScore());
@@ -114,7 +114,7 @@ public class OrchestratorService {
         } catch (JsonProcessingException ex) {
             score.setRecommendations(scoreResult.recommendations().toString());
         }
-        scoreRepository.save(score);
+        return scoreRepository.save(score);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
