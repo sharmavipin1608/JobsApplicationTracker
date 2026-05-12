@@ -52,7 +52,7 @@ class JobServiceTest {
     private JobResponse sampleResponse(JobStatus status, LocalDateTime appliedAt) {
         return new JobResponse(
                 UUID.randomUUID(), "Acme Corp", "Senior Engineer",
-                status, appliedAt, null, null, null, LocalDateTime.now()
+                status, appliedAt, null, null, null, null, LocalDateTime.now(), null
         );
     }
 
@@ -61,7 +61,7 @@ class JobServiceTest {
     @Test
     void shouldReturnJobResponse_whenValidRequest() {
         CreateJobRequest request = new CreateJobRequest(
-                "Acme Corp", "Senior Engineer", null, null, JobStatus.APPLIED, LocalDateTime.now()
+                "Acme Corp", "Senior Engineer", null, null, null, JobStatus.APPLIED, LocalDateTime.now()
         );
         Job mappedJob = new Job();
         mappedJob.setStatus(JobStatus.APPLIED);
@@ -83,7 +83,7 @@ class JobServiceTest {
     void shouldAutoTriggerAnalyze_whenJdTextIsPresent() {
         UUID jobId = UUID.randomUUID();
         CreateJobRequest request = new CreateJobRequest(
-                "Acme Corp", "Senior Engineer", "We need a Java engineer", null, JobStatus.UNDETERMINED, null
+                "Acme Corp", "Senior Engineer", "We need a Java engineer", null, null, JobStatus.UNDETERMINED, null
         );
         Job mappedJob = new Job();
         mappedJob.setStatus(JobStatus.UNDETERMINED);
@@ -104,7 +104,7 @@ class JobServiceTest {
     @Test
     void shouldDefaultAppliedAt_whenStatusIsPostApplicationAndAppliedAtIsNull() {
         CreateJobRequest request = new CreateJobRequest(
-                "Acme Corp", "Senior Engineer", null, null, JobStatus.APPLIED, null
+                "Acme Corp", "Senior Engineer", null, null, null, JobStatus.APPLIED, null
         );
         Job mappedJob = new Job();
         mappedJob.setStatus(JobStatus.APPLIED);
@@ -122,7 +122,7 @@ class JobServiceTest {
     @Test
     void shouldNotDefaultAppliedAt_whenStatusIsPreApplication() {
         CreateJobRequest request = new CreateJobRequest(
-                "Acme Corp", "Senior Engineer", null, null, JobStatus.UNDETERMINED, null
+                "Acme Corp", "Senior Engineer", null, null, null, JobStatus.UNDETERMINED, null
         );
         Job mappedJob = new Job();
         mappedJob.setStatus(JobStatus.UNDETERMINED);
@@ -298,7 +298,7 @@ class JobServiceTest {
     @Test
     void shouldCreateJob_withJdUrl() {
         CreateJobRequest request = new CreateJobRequest(
-                "Acme Corp", "Senior Engineer", null, "https://example.com/job", JobStatus.UNDETERMINED, null
+                "Acme Corp", "Senior Engineer", null, "https://example.com/job", null, JobStatus.UNDETERMINED, null
         );
         Job mappedJob = new Job();
         mappedJob.setStatus(JobStatus.UNDETERMINED);

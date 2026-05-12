@@ -10,6 +10,7 @@ public record CreateJobRequest(
         @NotBlank String role,
         String jdText,
         String jdUrl,
+        String notes,
         JobStatus status,
         LocalDateTime appliedAt
 ) {}

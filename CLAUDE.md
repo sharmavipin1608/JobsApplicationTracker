@@ -48,16 +48,16 @@ Standard layered Spring Boot architecture under `com.jobtracker`:
 - **`controller/`** — thin REST controllers, no business logic
 - **`service/`** — all business logic lives here (`@Service` classes)
 - **`repository/`** — Spring Data JPA repositories
-- **`model/`** — JPA entities (Job, AgentRun, Score)
+- **`model/`** — JPA entities (Job, AgentRun, Score, Resume)
 - **`dto/`** — Java records for request/response DTOs
 - **`mapper/`** — MapStruct mappers (entity <-> DTO)
 - **`enums/`** — `JobStatus` (with `isPreApplication()` flag), `AgentRunStatus`
 - **`agents/`** — AI agent orchestration: `JdParserAgent`, `ResumeScorerAgent`, `OrchestratorService`
 - **`client/`** — `OpenRouterClient` wrapping RestClient for LLM calls
 - **`config/`** — `OpenRouterProperties` (`@ConfigurationProperties`), `AsyncConfig`, `RestClientConfig`
-- **`exception/`** — `GlobalExceptionHandler` (`@RestControllerAdvice`), `JobNotFoundException`
+- **`exception/`** — `GlobalExceptionHandler` (`@RestControllerAdvice`), `JobNotFoundException`, `ResumeNotFoundException`
 
-Flyway migrations live in `src/main/resources/db/migration/` (V1-V5). Never edit a migration after it has run — always write a new one.
+Flyway migrations live in `src/main/resources/db/migration/` (V1-V7). Never edit a migration after it has run — always write a new one.
 
 ### AI Scoring Pipeline
 
@@ -86,15 +86,31 @@ When status changes to a non-pre-application status (anything except UNDETERMINE
 
 ## API
 
-| Method | Path                        | Description                        |
-|--------|-----------------------------|------------------------------------|
-| POST   | /api/v1/jobs                | Create a job application           |
-| GET    | /api/v1/jobs                | List all non-deleted jobs           |
-| GET    | /api/v1/jobs/{id}           | Get a single job                   |
-| PATCH  | /api/v1/jobs/{id}           | Partial update (status, notes)     |
-| DELETE | /api/v1/jobs/{id}           | Soft delete (204)                  |
-| POST   | /api/v1/jobs/{id}/analyze   | Trigger async AI analysis (202)    |
-| GET    | /api/v1/jobs/{id}/score     | Get latest AI score                |
+| Method | Path                              | Description                            |
+|--------|-----------------------------------|----------------------------------------|
+| POST   | /api/v1/jobs                      | Create a job application               |
+| GET    | /api/v1/jobs                      | List all non-deleted jobs              |
+| GET    | /api/v1/jobs/{id}                 | Get a single job                       |
+| PATCH  | /api/v1/jobs/{id}                 | Partial update (status, notes, jdUrl)  |
+| DELETE | /api/v1/jobs/{id}                 | Soft delete (204)                      |
+| POST   | /api/v1/jobs/{id}/analyze         | Trigger async AI analysis (202)        |
+| GET    | /api/v1/jobs/{id}/score           | Get latest AI score                    |
+| POST   | /api/v1/resume                    | Upload master resume                   |
+| GET    | /api/v1/resume                    | Get current master resume metadata     |
+| GET    | /api/v1/resume/download           | Download master resume file            |
+| POST   | /api/v1/jobs/{id}/resume          | Upload tailored resume for a job       |
+| GET    | /api/v1/jobs/{id}/resume          | Get tailored resume metadata           |
+| GET    | /api/v1/jobs/{id}/resume/download | Download tailored resume file          |
+
+### DTO Field Reference
+
+`CreateJobRequest`: `company` (required), `role` (required), `jdText`, `jdUrl`, `notes`, `status`, `appliedAt`
+
+`JobResponse`: `id`, `company`, `role`, `status`, `appliedAt`, `notes`, `jdText`, `jdUrl`, `fitScore`, `createdAt`, `updatedAt`
+
+### Resume Scoring Priority
+
+`ResumeScorerAgent` picks resume text in order: tailored resume for job → master resume → hardcoded fallback in `ResumeService.RESUME_FALLBACK`.
 
 ## Configuration
 
