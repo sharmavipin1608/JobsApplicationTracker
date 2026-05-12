@@ -42,7 +42,7 @@ public class JobTrackerMcpTools {
             @ToolParam(required = false, description = "URL of the job posting") String jdUrl,
             @ToolParam(required = false, description = "Initial status. One of: UNDETERMINED, APPLIED, SCREENING, INTERVIEWING, OFFER_RECEIVED, OFFER_ACCEPTED, OFFER_DECLINED, REJECTED, WITHDRAWN, GHOSTED, NOT_A_FIT. Defaults to UNDETERMINED.") String status) {
         JobStatus jobStatus = status != null ? JobStatus.valueOf(status) : null;
-        return jobService.createJob(new CreateJobRequest(company, role, jdText, jdUrl, jobStatus, null));
+        return jobService.createJob(new CreateJobRequest(company, role, jdText, jdUrl, null, jobStatus, null));
     }
 
     @Tool(description = "List all active (non-deleted) job applications")
