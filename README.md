@@ -31,20 +31,21 @@ A Spring Boot REST API to track job applications backed by PostgreSQL. Includes 
 | `POST`   | `/api/v1/jobs`              | Create a job application                 |
 | `GET`    | `/api/v1/jobs`              | List all non-deleted jobs                |
 | `GET`    | `/api/v1/jobs/{id}`         | Get a single job                         |
-| `PATCH`  | `/api/v1/jobs/{id}`         | Partial update (status, notes)           |
+| `PATCH`  | `/api/v1/jobs/{id}`         | Partial update (status, notes, jdUrl)    |
 | `DELETE` | `/api/v1/jobs/{id}`         | Soft delete (204)                        |
 | `POST`   | `/api/v1/jobs/{id}/analyze` | Trigger async AI analysis (202)          |
 | `GET`    | `/api/v1/jobs/{id}/score`   | Get latest AI fit score                  |
 
 ### Resumes
 
-| Method   | Path                              | Description                              |
-|----------|-----------------------------------|------------------------------------------|
-| `POST`   | `/api/v1/resumes`                 | Upload master resume (PDF/text)          |
-| `POST`   | `/api/v1/resumes?jobId={id}`      | Upload job-tailored resume               |
-| `GET`    | `/api/v1/resumes/master`          | Get current master resume metadata       |
-| `GET`    | `/api/v1/resumes/master/download` | Download current master resume file      |
-| `GET`    | `/api/v1/resumes/job/{jobId}`     | Get latest tailored resume for a job     |
+| Method  | Path                              | Description                               |
+|---------|-----------------------------------|-------------------------------------------|
+| `POST`  | `/api/v1/resume`                  | Upload / replace master resume (PDF or .txt) |
+| `GET`   | `/api/v1/resume`                  | Get current master resume metadata        |
+| `GET`   | `/api/v1/resume/download`         | Download current master resume file       |
+| `POST`  | `/api/v1/jobs/{id}/resume`        | Upload / replace tailored resume for a job |
+| `GET`   | `/api/v1/jobs/{id}/resume`        | Get latest tailored resume for a job      |
+| `GET`   | `/api/v1/jobs/{id}/resume/download` | Download tailored resume for a job      |
 
 ---
 
@@ -225,3 +226,109 @@ docker exec job-tracker-db psql -U jobuser -d jobtracker -c "SELECT id, company,
 ## CI/CD
 
 GitHub Actions (`.github/workflows/pr-check.yml`) runs on every PR: compile + full test suite. Testcontainers handles the database — no manual setup needed in CI.
+
+---
+
+## Claude Desktop integration (MCP)
+
+The API includes a Spring AI MCP (Model Context Protocol) server that lets Claude Desktop read and manage your job applications using natural language.
+
+### How it works
+
+When run with the `mcp` profile, the application starts as a STDIO MCP server (no HTTP port — Claude communicates via stdin/stdout). All logging is redirected to `/tmp/job-tracker-mcp.log` to keep stdout clean for the protocol.
+
+### Available tools
+
+| Tool | Description |
+|---|---|
+| `createJob` | Create a new job application (optionally triggers AI scoring if jdText is provided) |
+| `listJobs` | List all active (non-deleted) applications |
+| `getJob` | Get a single application by UUID |
+| `updateJob` | Update status, notes, or JD URL |
+| `deleteJob` | Soft-delete an application |
+| `analyzeAndWait` | Trigger AI fit scoring and block until a result arrives (up to 60 s) |
+| `getMasterResume` | Get the current master resume metadata |
+
+### Setup
+
+1. Build the jar:
+   ```bash
+   ./gradlew build -x test
+   ```
+
+2. Add this entry to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+   ```json
+   {
+     "mcpServers": {
+       "job-tracker": {
+         "command": "java",
+         "args": [
+           "-jar", "/absolute/path/to/build/libs/JobsApplicationTracker-0.0.1-SNAPSHOT.jar",
+           "--spring.profiles.active=mcp"
+         ],
+         "env": {
+           "DB_NAME": "jobtracker",
+           "DB_USER": "jobuser",
+           "DB_PASSWORD": "changeme",
+           "DB_PORT": "5432",
+           "OPENROUTER_API_KEY": "sk-or-v1-your-key"
+         }
+       }
+     }
+   }
+   ```
+
+3. Restart Claude Desktop. You can now say things like "Show me all my job applications" or "Mark the Vercel application as INTERVIEWING".
+
+> **Note:** The MCP server and the HTTP API share the same database. You can run both simultaneously — they don't conflict.
+
+---
+
+## Security
+
+### CORS
+`WebConfig.java` restricts cross-origin requests to `http://localhost:3000` (the Next.js dev server) for all `/api/**` routes. Update `allowedOrigins` before deploying to production.
+
+### No authentication
+All REST endpoints are publicly accessible — there is no authentication layer. This is intentional for local development. Add Spring Security (or an API gateway) before exposing this to the internet.
+
+### Secrets management
+All sensitive values (`OPENROUTER_API_KEY`, database credentials) are loaded from environment variables. The `.env` file is git-ignored — never commit it.
+
+The `OPENROUTER_API_KEY` is required only when AI analysis (`POST /api/v1/jobs/{id}/analyze`) is called. All other endpoints work without it.
+
+### Resume storage
+Resumes are stored as raw bytes (`BYTEA`) in PostgreSQL alongside extracted plain text. Files are only served via `Content-Disposition: attachment` — they cannot be rendered inline. There is no file size enforcement at the application layer; rely on your reverse proxy or load balancer for upload size limits in production (Apache PDFBox handles parsing errors gracefully and returns `UNSUPPORTED_FILE_TYPE` for non-PDF/text content).
+
+### Soft delete
+Jobs are never permanently deleted via the `DELETE` endpoint. The `deleted_at` column is set and the row is hidden from all queries via `@SQLRestriction`. A job can only be permanently removed by directly querying the database.
+
+---
+
+## Integration with the UI
+
+The companion Next.js frontend ([Job Tracker UI](https://github.com/sharmavipin1608/JobTracker-UI-v0)) connects to this API.
+
+### Quick start (both running locally)
+
+```bash
+# 1. Start this API (Docker, recommended):
+docker-compose up --build
+
+# 2. In the UI repo:
+echo "NEXT_PUBLIC_API_BASE_URL=http://localhost:8080" > .env.local
+npm install && npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+### How the UI uses the API
+
+| UI feature | Endpoint(s) used |
+|---|---|
+| Job list | `GET /api/v1/jobs` |
+| Create/edit job | `POST /api/v1/jobs`, `PATCH /api/v1/jobs/{id}` |
+| Delete job | `DELETE /api/v1/jobs/{id}` |
+| Analyze fit | `POST /api/v1/jobs/{id}/analyze` + polling `GET /api/v1/jobs/{id}/score` |
+| Master resume chip | `GET /api/v1/resume`, `POST /api/v1/resume`, `GET /api/v1/resume/download` |
+| Tailored resume section | `GET /api/v1/jobs/{id}/resume`, `POST /api/v1/jobs/{id}/resume`, `GET /api/v1/jobs/{id}/resume/download` |
