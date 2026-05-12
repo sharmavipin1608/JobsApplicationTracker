@@ -15,6 +15,7 @@ java {
 
 repositories {
     mavenCentral()
+    maven { url 'https://repo.spring.io/milestone' }
 }
 
 dependencies {
@@ -40,6 +41,10 @@ dependencies {
 
     // PDF text extraction
     implementation 'org.apache.pdfbox:pdfbox:3.0.4'
+
+    // Spring AI — MCP server (stdio transport for Claude Desktop)
+    implementation platform('org.springframework.ai:spring-ai-bom:1.0.0')
+    implementation 'org.springframework.ai:spring-ai-starter-mcp-server'
 
     // Testing
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
